@@ -8,9 +8,9 @@ location = "East US"
 # Naming
 # =============================================================================
 
-app_name      = "geci"
-environment   = "qa"
-env_prefix    = "na"
+app_name    = "geci"
+environment = "qa"
+env_prefix  = "na"
 
 # =============================================================================
 # Network
