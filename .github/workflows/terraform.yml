@@ -1,0 +1,167 @@
+name: GECI Infrastructure Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options: [qa, prod]
+      action:
+        description: "Terraform action (plan, apply, destroy, refresh)"
+        required: false
+        default: "apply"
+        type: choice
+        options: [plan, apply, destroy, refresh]
+
+env:
+  TF_DIR: .
+
+  BACKEND_RG: rg-tfstate-shared
+  BACKEND_SA: stgtfstateshared
+  BACKEND_CONTAINER: tfstate
+  BACKEND_LOCATION: eastus
+
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
+  ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+  ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+  ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+  ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+
+jobs:
+  # ─── Job 1: Plan ────────────────────────────────────────────────────────────
+  # Always runs. No approval required. Uploads saved plan as artifact.
+  plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT: ${{ github.event.inputs.environment }}
+      TFVARS_FILE: ${{ github.event.inputs.environment }}.tfvars
+      STATE_KEY:   geci/${{ github.event.inputs.environment }}/geci.tfstate
+      TF_VAR_admin_password: ${{ secrets.TF_VM_ADMIN_PASSWORD }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+        auth-type: SERVICE_PRINCIPAL
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.6.0
+        terraform_wrapper: false
+
+    - name: Pre-bootstrap Terraform backend
+      run: |
+        chmod +x ./prebootstrap.sh
+        ./prebootstrap.sh \
+          "${BACKEND_RG}" \
+          "${BACKEND_SA}" \
+          "${BACKEND_CONTAINER}" \
+          "${BACKEND_LOCATION}"
+
+    - name: Terraform Init
+      working-directory: ${{ env.TF_DIR }}
+      run: |
+        terraform init -reconfigure \
+          -backend-config="resource_group_name=$BACKEND_RG" \
+          -backend-config="storage_account_name=$BACKEND_SA" \
+          -backend-config="container_name=$BACKEND_CONTAINER" \
+          -backend-config="key=$STATE_KEY"
+
+    - name: Terraform FMT
+      working-directory: ${{ env.TF_DIR }}
+      run: terraform fmt -check
+
+    - name: Terraform Validate
+      working-directory: ${{ env.TF_DIR }}
+      run: terraform validate
+
+    - name: Terraform Plan
+      if: github.event.inputs.action == 'plan' || github.event.inputs.action == 'apply'
+      working-directory: ${{ env.TF_DIR }}
+      run: terraform plan -var-file="${TFVARS_FILE}" -out=tfplan
+
+    - name: Terraform Plan Destroy
+      if: github.event.inputs.action == 'destroy'
+      working-directory: ${{ env.TF_DIR }}
+      run: terraform plan -destroy -var-file="${TFVARS_FILE}" -out=tfplan-destroy
+
+    - name: Terraform Refresh
+      if: github.event.inputs.action == 'refresh'
+      working-directory: ${{ env.TF_DIR }}
+      run: terraform plan -refresh-only -var-file="${TFVARS_FILE}"
+
+    - name: Upload Plan Artifact
+      if: github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy'
+      uses: actions/upload-artifact@v4
+      with:
+        name: tfplan-${{ github.event.inputs.environment }}
+        path: |
+          tfplan
+          tfplan-destroy
+        if-no-files-found: ignore
+        retention-days: 1
+
+  # ─── Job 2: Apply / Destroy ─────────────────────────────────────────────────
+  # Runs only for apply or destroy. Waits for manual approval via GitHub
+  # Environment protection rules — configure required reviewers for qa and prod
+  # in repo Settings → Environments.
+  execute:
+    name: Terraform ${{ github.event.inputs.action == 'apply' && 'Apply' || 'Destroy' }}
+    needs: plan
+    if: github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    env:
+      ENVIRONMENT: ${{ github.event.inputs.environment }}
+      TFVARS_FILE: ${{ github.event.inputs.environment }}.tfvars
+      STATE_KEY:   geci/${{ github.event.inputs.environment }}/geci.tfstate
+      TF_VAR_admin_password: ${{ secrets.TF_VM_ADMIN_PASSWORD }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+        auth-type: SERVICE_PRINCIPAL
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.6.0
+        terraform_wrapper: false
+
+    - name: Terraform Init
+      working-directory: ${{ env.TF_DIR }}
+      run: |
+        terraform init -reconfigure \
+          -backend-config="resource_group_name=$BACKEND_RG" \
+          -backend-config="storage_account_name=$BACKEND_SA" \
+          -backend-config="container_name=$BACKEND_CONTAINER" \
+          -backend-config="key=$STATE_KEY"
+
+    - name: Download Plan Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: tfplan-${{ github.event.inputs.environment }}
+        path: ${{ env.TF_DIR }}
+
+    - name: Terraform Apply
+      if: github.event.inputs.action == 'apply'
+      working-directory: ${{ env.TF_DIR }}
+      run: terraform apply -auto-approve tfplan
+
+    - name: Terraform Destroy
+      if: github.event.inputs.action == 'destroy'
+      working-directory: ${{ env.TF_DIR }}
+      run: terraform apply -auto-approve tfplan-destroy
