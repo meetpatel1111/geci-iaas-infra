@@ -63,3 +63,32 @@ if ! az storage container show -n "$CONTAINER_NAME" --account-name "$SA_NAME" --
 fi
 
 echo "Backend ready: rg=$RG_NAME sa=$SA_NAME container=$CONTAINER_NAME"
+
+# =============================================================================
+# Register EncryptionAtHost feature
+# =============================================================================
+# Required for encryption_at_host_enabled = true on VMs. This is a one-time
+# subscription-level registration. Subsequent runs skip straight through.
+# Registration can take a few minutes on first run.
+# =============================================================================
+FEATURE_STATE=$(az feature show --name EncryptionAtHost --namespace Microsoft.Compute --query properties.state -o tsv 2>/dev/null || echo "NotRegistered")
+
+if [ "$FEATURE_STATE" = "Registered" ]; then
+  echo "EncryptionAtHost feature already registered — skipping"
+else
+  echo "Registering Microsoft.Compute/EncryptionAtHost feature..."
+  az feature register --name EncryptionAtHost --namespace Microsoft.Compute >/dev/null
+
+  echo "Waiting for EncryptionAtHost registration (first-time only, may take a few minutes)..."
+  while true; do
+    FEATURE_STATE=$(az feature show --name EncryptionAtHost --namespace Microsoft.Compute --query properties.state -o tsv)
+    if [ "$FEATURE_STATE" = "Registered" ]; then
+      break
+    fi
+    echo "  State: $FEATURE_STATE — retrying in 30s..."
+    sleep 30
+  done
+
+  az provider register --namespace Microsoft.Compute >/dev/null
+  echo "EncryptionAtHost feature registered successfully"
+fi
