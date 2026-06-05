@@ -56,8 +56,8 @@ resource "azurerm_windows_virtual_machine" "geci_vm" {
   source_image_reference {
     publisher = "MicrosoftWindowsServer"
     offer     = "WindowsServer"
-    sku       = "2025-Datacenter"
-    version   = "latest" # Always pulls the latest patched image at deploy time
+    sku       = "2025-datacenter-g2" # Gen 2 required for D4as_v7 and all v6/v7 VM sizes
+    version   = "latest"            # Always pulls the latest patched image at deploy time
   }
 
   boot_diagnostics {

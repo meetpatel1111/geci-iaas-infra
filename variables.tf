@@ -75,8 +75,8 @@ variable "admin_password" {
 
 variable "vm_size" {
   type        = string
-  description = "Azure VM size — Standard_D4as_v7 is the closest available (AMD, 4 vCPU, 16 GB RAM) matching on-prem hardware"
-  default     = "Standard_D4as_v7"
+  description = "Azure VM size — Standard_B4s_v2 (4 vCPU, 16 GB RAM, burstable) suitable for low-traffic internal workload"
+  default     = "Standard_B4s_v2"
 }
 
 variable "migration_source_snapshot_id" {
