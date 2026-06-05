@@ -75,8 +75,8 @@ variable "admin_password" {
 
 variable "vm_size" {
   type        = string
-  description = "Azure VM size — Standard_D4as_v7 (4 vCPU, 16 GB RAM, consistent CPU) for GECI production workload"
-  default     = "Standard_D4as_v7"
+  description = "Azure VM size — Standard_D4as_v4 (4 vCPU, 16 GB RAM, AMD EPYC, consistent CPU) available in East US"
+  default     = "Standard_D4as_v4"
 }
 
 variable "migration_source_snapshot_id" {
@@ -92,7 +92,7 @@ variable "migration_source_snapshot_id" {
 variable "location" {
   type        = string
   description = "Azure region for all resources"
-  default     = "East US"
+  default     = "East US 2"
 }
 
 variable "tags" {
