@@ -1,4 +1,24 @@
 #!/usr/bin/env bash
+# =============================================================================
+# Pre-bootstrap: Terraform Remote State Backend Setup
+# =============================================================================
+# Creates the Azure Storage Account and Blob Container that Terraform uses to
+# store remote state, before terraform init runs. This must execute first in
+# the CI pipeline so the backend exists before Terraform tries to connect.
+#
+# Usage:
+#   ./prebootstrap.sh <resource-group> <storage-account> <container> [location]
+#
+# Arguments:
+#   $1 RG_NAME        — Resource group for the tfstate storage account
+#   $2 SA_NAME        — Storage account name (must be globally unique)
+#   $3 CONTAINER_NAME — Blob container name (e.g. tfstate)
+#   $4 LOCATION       — Azure region (default: eastus)
+#
+# The script is idempotent — safe to run on every pipeline execution.
+# If the storage account already exists in a different resource group it
+# reuses it rather than failing, and warns so the team can investigate.
+# =============================================================================
 set -e
 
 RG_NAME=$1
