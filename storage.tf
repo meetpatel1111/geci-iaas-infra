@@ -19,9 +19,9 @@ resource "azurerm_storage_account" "diag" {
   account_tier             = "Standard"
   account_replication_type = "LRS" # LRS is sufficient for diagnostics — no geo-redundancy needed
 
-  min_tls_version            = "TLS1_2"
-  https_traffic_only_enabled = true
-  allow_blob_public_access   = false
+  min_tls_version               = "TLS1_2"
+  https_traffic_only_enabled    = true
+  public_network_access_enabled = false
 
   tags = var.tags
 }
