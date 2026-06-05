@@ -27,7 +27,7 @@ admin_username = "geci-admin"
 
 private_ip_address = "10.0.7.4"
 
-vm_size = "Standard_D4as_v5"
+vm_size = "Standard_D4as_v7"
 
 # =============================================================================
 # Network Security

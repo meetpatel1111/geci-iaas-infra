@@ -75,8 +75,8 @@ variable "admin_password" {
 
 variable "vm_size" {
   type        = string
-  description = "Azure VM size — Standard_D4as_v5 matches the current on-prem hardware (AMD EPYC 7763, 4 vCPU, 16 GB RAM)"
-  default     = "Standard_D4as_v5"
+  description = "Azure VM size — Standard_D4as_v7 is the closest available (AMD, 4 vCPU, 16 GB RAM) matching on-prem hardware"
+  default     = "Standard_D4as_v7"
 }
 
 variable "migration_source_snapshot_id" {
